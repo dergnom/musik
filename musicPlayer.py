@@ -5,7 +5,9 @@ import time as time
 import threading
 import multiprocessing
 from os import system
-
+import os
+import subprocess
+import sys
 
 SWITCH_PIN = 4
 PIN2 = 22
@@ -18,6 +20,7 @@ MINUS_PIN = 27
 musicFile = '/home/thomas/Python/Media/PippiLangstrumpf.mp3'
 musicFile2 = '/home/thomas/Python/Media/lied2.mp3'
 musicFile3 = '/home/thomas/Python/Media/fabian.mp3'
+songDirectory = '/home/thomas/Python/Media/Lieder2'
 
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(SWITCH_PIN, GPIO.IN)
@@ -27,12 +30,15 @@ GPIO.setup(MINUS_PIN, GPIO.IN)
 GPIO.setup(PIN2, GPIO.IN)
 GPIO.setup(PIN3, GPIO.IN)
 
+songList = sorted(os.listdir(songDirectory))
+iSongPosition = 0
+iLastSong = len(songList)-1
+
 def playSound(file):
     cmd = '/usr/bin/audacious -H ' + file
     print('playSound: ',cmd)
     rtrn = system(cmd)
-    print('playSound: ',rtrn)
-
+    print('playSound finished: ',rtrn)
 
 musicProcess = multiprocessing.Process(target=playSound, args=(musicFile,))
 
@@ -52,39 +58,61 @@ while True:
             time.sleep(0.3)
 
     if bool(GPIO.input(PLUS_PIN)):
-        print("Plus Schalter gedrückt")
-        system("/usr/bin/pactl -- set-sink-volume alsa_output.platform-bcm2835_audio.stereo-fallback +10%")
-        time.sleep(0.1)
+        print("Gelber Schalter gedrückt")
+        #system("/usr/bin/pactl -- set-sink-volume alsa_output.platform-bcm2835_audio.stereo-fallback +10%")
+        #time.sleep(0.1)
+
+        cmd = subprocess.Popen('/usr/bin/audtool --playback-status', shell= True, stdout=subprocess.PIPE)
+        for line in cmd.stdout:
+            print('line ' + line.decode(encoding='UTF-8'))
+            if line.decode(encoding='UTF-8')[:-1] == 'playing':
+                print('playing gefunden')
+                iSongPosition = iSongPosition + 1
+                if iSongPosition > iLastSong:
+                    iSongPosition = 0
+               
+        sSongFile = songDirectory + '/' + songList[iSongPosition]
+        print("Spiele Lied: " + sSongFile)
+
+        system('/usr/bin/audacious -H ' + sSongFile + ' &')
+        #musicProcess = multiprocessing.Process(target=playSound, args=(sSongFile,))
+        #musicProcess.start()        
+        
         while bool(GPIO.input(PLUS_PIN)):
             time.sleep(0.1)
         else:
-            print("Plus Schalter losgelassen")
+            print("Gelber Schalter losgelassen")
             #warten, dass sich der Schalter beruhigt:
             time.sleep(0.3)
 
     if bool(GPIO.input(MINUS_PIN)):
-        print("Minus Schalter gedrückt")
-        system("/usr/bin/pactl -- set-sink-volume alsa_output.platform-bcm2835_audio.stereo-fallback -10%")
-        time.sleep(0.1)
+        print("Blauer Schalter gedrückt")
+        #system("/usr/bin/pactl -- set-sink-volume alsa_output.platform-bcm2835_audio.stereo-fallback -10%")
+        #time.sleep(0.1)
+
+        cmd = subprocess.Popen('/usr/bin/audtool --current-song-output-length-seconds', shell = True, stdout=subprocess.PIPE)
+        runTime = int(cmd.stdout.readline().decode(encoding='UTF-8')[:-1])
+        if runTime <3:    
+            iSongPosition = iSongPosition - 1
+            if iSongPosition < 0:
+                iSongPosition = iLastSong
+
+        sSongFile = songDirectory + '/' + songList[iSongPosition]
+        print("Spiele Lied: " + sSongFile)
+
+        system('/usr/bin/audacious -H ' + sSongFile + ' &')
+        
         while bool(GPIO.input(MINUS_PIN)):
             time.sleep(0.1)
         else:
-            print("Minus Schalter losgelassen")
+            print("Blauer Schalter losgelassen")
             #warten, dass sich der Schalter beruhigt:
             time.sleep(0.3)
-
-
 
     if bool(GPIO.input(SWITCH_PIN)):
         print("Schalter gedrückt")
 
-        if musicProcess.is_alive():
-            musicProcess.terminate()
-            musicProcess.join()
-            musicProcess.close()
-            
-        musicProcess = multiprocessing.Process(target=playSound, args=(musicFile,))
-        musicProcess.start()        
+        system('/usr/bin/audacious -H ' + musicFile + ' &')
         
         while bool(GPIO.input(SWITCH_PIN)):
             time.sleep(0.1)
@@ -93,17 +121,10 @@ while True:
             #warten, dass sich der Schalter beruhigt:
             time.sleep(0.3)
 
-
     if bool(GPIO.input(PIN2)):
         print("PIN2 gedrückt")
 
-        if musicProcess.is_alive():
-            musicProcess.terminate()
-            musicProcess.join()
-            musicProcess.close()
-            
-        musicProcess = multiprocessing.Process(target=playSound, args=(musicFile2,))
-        musicProcess.start()        
+        system('/usr/bin/audacious -H ' + musicFile2 + ' &')
         
         while bool(GPIO.input(SWITCH_PIN)):
             time.sleep(0.1)
@@ -112,17 +133,10 @@ while True:
             #warten, dass sich der Schalter beruhigt:
             time.sleep(0.3)
 
-
     if bool(GPIO.input(PIN3)):
         print("PIN3 gedrückt")
 
-        if musicProcess.is_alive():
-            musicProcess.terminate()
-            musicProcess.join()
-            musicProcess.close()
-            
-        musicProcess = multiprocessing.Process(target=playSound, args=(musicFile3,))
-        musicProcess.start()        
+        system('/usr/bin/audacious -H ' + musicFile3 + ' &')
         
         while bool(GPIO.input(SWITCH_PIN)):
             time.sleep(0.1)
@@ -130,8 +144,5 @@ while True:
             print("PIN3 losgelassen")
             #warten, dass sich der Schalter beruhigt:
             time.sleep(0.3)
-
-
-    
     else:
         time.sleep(0.1)
